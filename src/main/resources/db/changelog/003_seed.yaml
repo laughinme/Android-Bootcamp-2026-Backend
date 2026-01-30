@@ -1,12 +1,24 @@
 databaseChangeLog:
   - changeSet:
-      id: 100-seed-users
-      author: you
+      id: 003-01-seed-roles
+      author: assistant
+      changes:
+        - loadData:
+            tableName: roles
+            file: db/changelog/data/roles.csv
+            separator: ","
+            columns:
+              - column: { name: id, type: UUID }
+              - column: { name: slug, type: STRING }
+              - column: { name: name, type: STRING }
+
+  - changeSet:
+      id: 003-02-seed-users
+      author: assistant
       changes:
         - loadData:
             tableName: users
-            file: ../data/users.csv
-            relativeToChangelogFile: true
+            file: db/changelog/data/users.csv
             separator: ","
             columns:
               - column: { name: id, type: UUID }
@@ -16,52 +28,26 @@ databaseChangeLog:
               - column: { name: telegram_nick, type: STRING }
 
   - changeSet:
-      id: 110-seed-rooms
-      author: you
+      id: 003-03-seed-user-roles
+      author: assistant
+      changes:
+        - loadData:
+            tableName: user_roles
+            file: db/changelog/data/user_roles.csv
+            separator: ","
+            columns:
+              - column: { name: user_id, type: UUID }
+              - column: { name: role_id, type: UUID }
+
+  - changeSet:
+      id: 003-04-seed-rooms
+      author: assistant
       changes:
         - loadData:
             tableName: rooms
-            file: ../data/rooms.csv
-            relativeToChangelogFile: true
+            file: db/changelog/data/rooms.csv
             separator: ","
             columns:
               - column: { name: id, type: UUID }
               - column: { name: name, type: STRING }
               - column: { name: capacity, type: NUMERIC }
-
-  - changeSet:
-      id: 120-seed-meetings
-      author: you
-      changes:
-        - loadData:
-            tableName: meetings
-            file: ../data/meetings.csv
-            relativeToChangelogFile: true
-            separator: ","
-            columns:
-              - column: { name: id, type: UUID }
-              - column: { name: organizer_id, type: UUID }
-              - column: { name: title, type: STRING }
-              - column: { name: description, type: STRING }
-              - column: { name: meeting_date, type: DATE }
-              - column: { name: start_hour, type: NUMERIC }
-              - column: { name: duration_hours, type: NUMERIC }
-              - column: { name: room_id, type: UUID }
-              - column: { name: status, type: STRING }
-
-  - changeSet:
-      id: 130-seed-meeting-participants
-      author: you
-      changes:
-        - loadData:
-            tableName: meeting_participants
-            file: ../data/meeting_participants.csv
-            relativeToChangelogFile: true
-            separator: ","
-            columns:
-              - column: { name: meeting_id, type: UUID }
-              - column: { name: user_id, type: UUID }
-              - column: { name: meeting_date, type: DATE }
-              - column: { name: start_hour, type: NUMERIC }
-              - column: { name: role, type: STRING }
-              - column: { name: status, type: STRING }
