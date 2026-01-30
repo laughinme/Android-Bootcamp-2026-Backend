@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-indices
+      author: you
+      changes:
+        - sql:
+            splitStatements: true
+            endDelimiter: ";"
+            sql: |
+              CREATE UNIQUE INDEX IF NOT EXISTS ux_room_slot
+              ON meetings(room_id, meeting_date, start_hour)
+              WHERE status = 'SCHEDULED' AND room_id IS NOT NULL;
+              
+              CREATE UNIQUE INDEX IF NOT EXISTS ux_user_slot_accepted
+              ON meeting_participants(user_id, meeting_date, start_hour)
+              WHERE status = 'ACCEPTED';

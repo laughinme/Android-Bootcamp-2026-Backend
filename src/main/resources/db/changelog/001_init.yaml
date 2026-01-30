@@ -1,0 +1,334 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-extensions-pgcrypto
+      author: you
+      changes:
+        - sql:
+            sql: "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+
+#  # postgres enum
+#  - changeSet:
+#      id: 002-enums
+#      author: you
+#      changes:
+#        - sql:
+#            splitStatements: true
+#            endDelimiter: ";"
+#            sql: |
+#              DO $$
+#              BEGIN
+#                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'meeting_status') THEN
+#                  CREATE TYPE meeting_status AS ENUM ('SCHEDULED','CANCELLED');
+#                END IF;
+#                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'participant_role') THEN
+#                  CREATE TYPE participant_role AS ENUM ('ORGANIZER','ATTENDEE');
+#                END IF;
+#                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'participant_status') THEN
+#                  CREATE TYPE participant_status AS ENUM ('PENDING','ACCEPTED','DECLINED');
+#                END IF;
+#              END$$;
+
+  # users
+  - changeSet:
+      id: 010-create-users
+      author: you
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: login
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: password_hash
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: bio
+                  type: text
+
+              - column:
+                  name: telegram_nick
+                  type: varchar(64)
+
+              - column:
+                  name: avatar_bytes
+                  type: bytea
+
+              - column:
+                  name: avatar_content_type
+                  type: varchar(64)
+
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+  # rooms
+  - changeSet:
+      id: 020-create-rooms
+      author: you
+      changes:
+        - createTable:
+            tableName: rooms
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: capacity
+                  type: int
+                  constraints:
+                    nullable: false
+
+  # meetings
+  - changeSet:
+      id: 030-create-meetings
+      author: you
+      changes:
+        - createTable:
+            tableName: meetings
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: organizer_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: title
+                  type: varchar(256)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: description
+                  type: text
+
+              - column:
+                  name: meeting_date
+                  type: date
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: start_hour
+                  type: smallint
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: duration_hours
+                  type: smallint
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: room_id
+                  type: bigint
+
+              - column:
+                  name: status
+                  type: varchar(64)
+                  defaultValue: SCHEDULED
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: meetings
+            baseColumnNames: organizer_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_meetings_organizer
+
+        - addForeignKeyConstraint:
+            baseTableName: meetings
+            baseColumnNames: room_id
+            referencedTableName: rooms
+            referencedColumnNames: id
+            constraintName: fk_meetings_room
+
+        - addCheckConstraint:
+            tableName: meetings
+            constraintName: ck_meetings_start_hour
+            checkConstraint: "start_hour >= 0 AND start_hour <= 23"
+
+        - addCheckConstraint:
+            tableName: meetings
+            constraintName: ck_meetings_duration
+            checkConstraint: "duration_hours >= 1 AND duration_hours <= 24"
+
+        - createIndex:
+            tableName: meetings
+            indexName: ix_meetings_date_hour
+            columns:
+              - column: { name: meeting_date }
+              - column: { name: start_hour }
+
+        - createIndex:
+            tableName: meetings
+            indexName: ix_meetings_organizer_slot
+            columns:
+              - column: { name: organizer_id }
+              - column: { name: meeting_date }
+              - column: { name: start_hour }
+
+  # meeting_participants
+  - changeSet:
+      id: 040-create-meeting-participants
+      author: you
+      changes:
+        - createTable:
+            tableName: meeting_participants
+            columns:
+              - column:
+                  name: meeting_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: meeting_date
+                  type: date
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: start_hour
+                  type: smallint
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: role
+                  type: varchar(64)
+                  defaultValue: ATTENDEE
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: status
+                  type: varchar(64)
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: responded_at
+                  type: timestamp with time zone
+
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addPrimaryKey:
+            tableName: meeting_participants
+            columnNames: meeting_id, user_id
+            constraintName: pk_meeting_participants
+
+        - addForeignKeyConstraint:
+            baseTableName: meeting_participants
+            baseColumnNames: meeting_id
+            referencedTableName: meetings
+            referencedColumnNames: id
+            constraintName: fk_mp_meeting
+
+        - addForeignKeyConstraint:
+            baseTableName: meeting_participants
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_mp_user
+
+        - addCheckConstraint:
+            tableName: meeting_participants
+            constraintName: ck_mp_start_hour
+            checkConstraint: "start_hour >= 0 AND start_hour <= 23"
+
+        - createIndex:
+            tableName: meeting_participants
+            indexName: ix_mp_user_slot
+            columns:
+              - column: { name: user_id }
+              - column: { name: meeting_date }
+              - column: { name: start_hour }
+
+        - createIndex:
+            tableName: meeting_participants
+            indexName: ix_mp_meeting_status
+            columns:
+              - column: { name: meeting_id }
+              - column: { name: status }
