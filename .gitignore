@@ -40,3 +40,4 @@ python_example/
 /www.liquibase.org/
 *.json
 !openapi.json
+db.txt
