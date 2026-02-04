@@ -4,9 +4,11 @@ import com.teto.planner.entity.UserEntity;
 import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.exception.UnauthorizedException;
 import com.teto.planner.repository.UserRepository;
-import java.util.Optional;
+import com.teto.planner.security.UserPrincipal;
 import java.util.UUID;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,28 +19,23 @@ public class CurrentUserService {
         this.userRepository = userRepository;
     }
 
-    public UserEntity resolve(String userIdHeader, String loginHeader) {
-        if (userIdHeader != null && !userIdHeader.isBlank()) {
-            try {
-                UUID id = UUID.fromString(userIdHeader);
-                return userRepository.findById(id)
-                        .orElseThrow(() -> new UnauthorizedException("UNAUTHORIZED", "User not found"));
-            } catch (IllegalArgumentException ex) {
-                throw new UnauthorizedException("UNAUTHORIZED", "Invalid X-User-Id header");
-            }
+    public UserEntity getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedException("UNAUTHORIZED", "Missing credentials");
         }
 
-        if (loginHeader != null && !loginHeader.isBlank()) {
-            return userRepository.findByLoginIgnoreCase(loginHeader)
-                    .orElseThrow(() -> new UnauthorizedException("UNAUTHORIZED", "User not found"));
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserPrincipal userPrincipal) {
+            UUID userId = userPrincipal.getId();
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND", "User not found"));
+        }
+        if (principal instanceof UserDetails userDetails) {
+            return userRepository.findByLoginIgnoreCase(userDetails.getUsername())
+                    .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND", "User not found"));
         }
 
-        Optional<UserEntity> admin = userRepository.findByLoginIgnoreCase("admin");
-        if (admin.isPresent()) {
-            return admin.get();
-        }
-
-        return userRepository.findAll(PageRequest.of(0, 1)).stream().findFirst()
-                .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND", "No users in database"));
+        throw new UnauthorizedException("UNAUTHORIZED", "Missing credentials");
     }
 }

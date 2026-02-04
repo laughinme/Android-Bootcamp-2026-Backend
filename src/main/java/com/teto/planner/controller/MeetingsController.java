@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,25 +36,21 @@ public class MeetingsController {
 
     @GetMapping
     public MeetingsPage listMeetings(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "includePending", defaultValue = "false") boolean includePending,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         return meetingService.listMeetings(currentUser, startDate, endDate, includePending, page, size);
     }
 
     @PostMapping
     public ResponseEntity<MeetingDto> createMeeting(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @Valid @RequestBody MeetingCreateRequest request
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         MeetingDto created = meetingService.createMeeting(currentUser, request);
         return ResponseEntity.status(201).body(created);
     }
@@ -67,33 +62,27 @@ public class MeetingsController {
 
     @PatchMapping("/{meetingId}")
     public MeetingDto patchMeeting(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @PathVariable UUID meetingId,
             @Valid @RequestBody MeetingUpdateRequest request
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         return meetingService.updateMeeting(currentUser, meetingId, request);
     }
 
     @DeleteMapping("/{meetingId}")
     public ResponseEntity<Void> cancelMeeting(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @PathVariable UUID meetingId
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         meetingService.cancelMeeting(currentUser, meetingId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/slots")
     public BusySlotsResponse getSlots(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @RequestParam("meetingDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate meetingDate
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         return meetingService.getBusySlots(currentUser, meetingDate);
     }
 

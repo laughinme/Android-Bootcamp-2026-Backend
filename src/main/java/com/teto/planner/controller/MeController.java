@@ -7,7 +7,6 @@ import com.teto.planner.entity.UserEntity;
 import com.teto.planner.service.CurrentUserService;
 import com.teto.planner.service.UserService;
 import jakarta.validation.Valid;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -29,32 +28,23 @@ public class MeController {
     }
 
     @GetMapping
-    public UserMeDto getMe(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login
-    ) {
-        UserEntity user = currentUserService.resolve(userId, login);
+    public UserMeDto getMe() {
+        UserEntity user = currentUserService.getCurrentUser();
         return userService.toMe(user);
     }
 
     @PatchMapping
-    public UserMeDto patchMe(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
-            @Valid @RequestBody UpdateUserRequest request
-    ) {
-        UserEntity user = currentUserService.resolve(userId, login);
+    public UserMeDto patchMe(@Valid @RequestBody UpdateUserRequest request) {
+        UserEntity user = currentUserService.getCurrentUser();
         return userService.updateMe(user, request.name(), request.telegramNick());
     }
 
     @PutMapping(value = "/avatar", consumes = {"image/jpeg", "image/png"})
     public ResponseEntity<AvatarUploadResponse> putAvatar(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @RequestBody byte[] bytes,
             @RequestHeader("Content-Type") String contentType
     ) {
-        UserEntity user = currentUserService.resolve(userId, login);
+        UserEntity user = currentUserService.getCurrentUser();
         UserMeDto updated = userService.updateAvatar(user, bytes, contentType);
         return ResponseEntity.ok(new AvatarUploadResponse(
                 "/api/users/" + updated.id() + "/avatar",

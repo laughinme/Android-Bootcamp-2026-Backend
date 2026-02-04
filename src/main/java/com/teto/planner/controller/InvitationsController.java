@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,24 +31,20 @@ public class InvitationsController {
 
     @GetMapping
     public InvitationsResponse listInvitations(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @RequestParam(value = "status", required = false) ParticipantStatus status,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         return invitationService.listInvitations(currentUser, status, page, size);
     }
 
     @PostMapping("/{meetingId}/response")
     public ResponseEntity<MeetingParticipantDto> respond(
-            @RequestHeader(value = "X-User-Id", required = false) String userId,
-            @RequestHeader(value = "X-User-Login", required = false) String login,
             @PathVariable UUID meetingId,
             @Valid @RequestBody InvitationResponseRequest request
     ) {
-        UserEntity currentUser = currentUserService.resolve(userId, login);
+        UserEntity currentUser = currentUserService.getCurrentUser();
         MeetingParticipantDto updated = invitationService.respond(currentUser, meetingId, request.status());
         return ResponseEntity.ok(updated);
     }
