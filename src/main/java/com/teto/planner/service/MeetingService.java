@@ -18,6 +18,7 @@ import com.teto.planner.exception.ConflictException;
 import com.teto.planner.exception.ForbiddenException;
 import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.mapper.MeetingMapper;
+import com.teto.planner.pagination.Pagination;
 import com.teto.planner.repository.MeetingParticipantRepository;
 import com.teto.planner.repository.MeetingRepository;
 import java.time.LocalDate;
@@ -27,7 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,7 +57,15 @@ public class MeetingService {
     public MeetingsPage listMeetings(UserEntity currentUser, LocalDate startDate, LocalDate endDate,
                                      boolean includePending, int page, int size) {
         Page<MeetingEntity> meetings = meetingRepository.findForUserBetween(
-                currentUser.getId(), startDate, endDate, includePending, PageRequest.of(page, size));
+                currentUser.getId(),
+                startDate,
+                endDate,
+                includePending,
+                Pagination.pageRequest(page, size, Sort.by(
+                        Sort.Order.asc("meetingDate"),
+                        Sort.Order.asc("startHour"),
+                        Sort.Order.asc("id")
+                )));
         List<MeetingDto> items = meetings.getContent().stream()
                 .map(meetingMapper::toDto)
                 .collect(Collectors.toList());

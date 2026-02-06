@@ -10,6 +10,7 @@ import com.teto.planner.entity.UserEntity;
 import com.teto.planner.exception.BadRequestException;
 import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.mapper.UserMapper;
+import com.teto.planner.pagination.Pagination;
 import com.teto.planner.repository.BusyHoursProjection;
 import com.teto.planner.repository.MeetingParticipantRepository;
 import com.teto.planner.repository.UserRepository;
@@ -20,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +47,7 @@ public class UserService {
 
     public UsersPage listUsers(String query, LocalDate busyDate, boolean includeLoad, int page, int size) {
         Page<UserEntity> usersPage;
-        PageRequest pageable = PageRequest.of(page, size);
+        var pageable = Pagination.pageRequest(page, size, Sort.by(Sort.Order.asc("login"), Sort.Order.asc("id")));
         if (query != null && !query.isBlank()) {
             usersPage = userRepository.findByLoginContainingIgnoreCaseOrNameContainingIgnoreCase(query, query, pageable);
         } else {
