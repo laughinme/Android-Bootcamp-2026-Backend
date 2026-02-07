@@ -8,6 +8,7 @@ import com.teto.planner.dto.UserSummaryDto;
 import com.teto.planner.dto.UsersPage;
 import com.teto.planner.entity.UserEntity;
 import com.teto.planner.exception.BadRequestException;
+import com.teto.planner.exception.ConflictException;
 import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.mapper.UserMapper;
 import com.teto.planner.pagination.Pagination;
@@ -80,9 +81,12 @@ public class UserService {
     }
 
     @Transactional
-    public UserDto createUser(String login, String name, String password, String telegramNick) {
+    public UserDto createUser(String login, String name, String password, String telegramNick, String bio) {
         if (login == null || login.isBlank()) {
             throw new BadRequestException("VALIDATION_ERROR", "login is required");
+        }
+        if (userRepository.findByLoginIgnoreCase(login).isPresent()) {
+            throw new ConflictException("LOGIN_EXISTS", "Login already exists");
         }
         UserEntity user = new UserEntity();
         user.setId(UUID.randomUUID());
@@ -90,18 +94,22 @@ public class UserService {
         user.setName(name);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setTelegramNick(telegramNick);
+        user.setBio(bio);
         UserEntity saved = userRepository.save(user);
         return userMapper.toDto(saved);
     }
 
     @Transactional
-    public UserDto updateUser(UUID userId, String name, String telegramNick) {
+    public UserDto updateUser(UUID userId, String name, String telegramNick, String bio) {
         UserEntity user = findUser(userId);
         if (name != null) {
             user.setName(name);
         }
         if (telegramNick != null) {
             user.setTelegramNick(telegramNick);
+        }
+        if (bio != null) {
+            user.setBio(bio);
         }
         return userMapper.toDto(user);
     }
@@ -113,12 +121,15 @@ public class UserService {
     }
 
     @Transactional
-    public UserMeDto updateMe(UserEntity user, String name, String telegramNick) {
+    public UserMeDto updateMe(UserEntity user, String name, String telegramNick, String bio) {
         if (name != null) {
             user.setName(name);
         }
         if (telegramNick != null) {
             user.setTelegramNick(telegramNick);
+        }
+        if (bio != null) {
+            user.setBio(bio);
         }
         return userMapper.toMe(user);
     }

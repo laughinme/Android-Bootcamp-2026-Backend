@@ -8,6 +8,7 @@ import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.mapper.RoomMapper;
 import com.teto.planner.pagination.Pagination;
 import com.teto.planner.repository.RoomRepository;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,6 +33,18 @@ public class RoomService {
                 size,
                 Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id"))
         ));
+        List<RoomDto> items = rooms.getContent().stream().map(roomMapper::toDto).collect(Collectors.toList());
+        return new RoomsPage(items, new PageMeta(page, size, rooms.getTotalElements()));
+    }
+
+    public RoomsPage listAvailable(LocalDate meetingDate, Integer startHour, Integer capacity, int page, int size) {
+        Short hour = startHour != null ? startHour.shortValue() : null;
+        Page<RoomEntity> rooms = roomRepository.findAvailable(
+                meetingDate,
+                hour,
+                capacity,
+                Pagination.pageRequest(page, size, Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id")))
+        );
         List<RoomDto> items = rooms.getContent().stream().map(roomMapper::toDto).collect(Collectors.toList());
         return new RoomsPage(items, new PageMeta(page, size, rooms.getTotalElements()));
     }
