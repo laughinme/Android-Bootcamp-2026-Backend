@@ -51,3 +51,16 @@ databaseChangeLog:
               - column: { name: id, type: UUID }
               - column: { name: name, type: STRING }
               - column: { name: capacity, type: NUMERIC }
+
+  - changeSet:
+      id: 003-05-seed-rooms-epstein
+      author: assistant
+      changes:
+        - loadData:
+            tableName: rooms
+            file: db/changelog/data/rooms_epstein.csv
+            separator: ","
+            columns:
+              - column: { name: id, type: UUID }
+              - column: { name: name, type: STRING }
+              - column: { name: capacity, type: NUMERIC }

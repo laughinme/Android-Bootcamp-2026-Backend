@@ -1,5 +1,6 @@
 package com.teto.planner.service;
 
+import com.teto.planner.dto.FirstFreeSlotResponse;
 import com.teto.planner.dto.IntersectionResponse;
 import com.teto.planner.dto.IntersectionSlotDto;
 import com.teto.planner.dto.IntersectionSlotStatus;
@@ -87,6 +88,20 @@ public class SchedulingService {
         }
 
         return new IntersectionResponse(meetingDate, organizerSummary, users, slots);
+    }
+
+    public FirstFreeSlotResponse getFirstFreeSlot(UserEntity organizer, LocalDate meetingDate, List<UUID> userIds) {
+        IntersectionResponse intersection = getIntersection(organizer, meetingDate, userIds);
+        IntersectionSlotDto firstFree = intersection.slots().stream()
+                .filter(slot -> slot.status() == IntersectionSlotStatus.GREEN)
+                .findFirst()
+                .orElse(null);
+        return new FirstFreeSlotResponse(
+                intersection.meetingDate(),
+                intersection.organizer(),
+                intersection.users(),
+                firstFree
+        );
     }
 
     private String label(int hour) {

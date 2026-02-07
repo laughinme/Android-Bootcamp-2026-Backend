@@ -16,6 +16,7 @@ import com.teto.planner.entity.MeetingParticipantId;
 import com.teto.planner.entity.MeetingStatus;
 import com.teto.planner.entity.ParticipantRole;
 import com.teto.planner.entity.ParticipantStatus;
+import com.teto.planner.entity.RoomEntity;
 import com.teto.planner.entity.UserEntity;
 import com.teto.planner.exception.ConflictException;
 import com.teto.planner.exception.ForbiddenException;
@@ -87,6 +88,11 @@ public class MeetingService {
         int duration = request.durationHours() != null ? request.durationHours() : 1;
         short startHour = request.startHour().shortValue();
         short durationHours = (short) duration;
+        Set<UUID> invitees = new HashSet<>();
+        if (request.participantIds() != null) {
+            invitees.addAll(request.participantIds());
+            invitees.remove(organizer.getId());
+        }
 
         if (participantRepository.countAcceptedAtSlot(organizer.getId(), request.meetingDate(), startHour) > 0) {
             throw new ConflictException("SLOT_CONFLICT", "Organizer is busy at that slot");
@@ -107,15 +113,18 @@ public class MeetingService {
         meeting.setDurationHours(durationHours);
         meeting.setStatus(MeetingStatus.SCHEDULED);
 
+        RoomEntity room = null;
         if (request.roomId() != null) {
-            meeting.setRoom(roomService.findRoom(request.roomId()));
+            room = roomService.findRoom(request.roomId());
+            meeting.setRoom(room);
         }
+        ensureRoomCapacity(room, 1 + invitees.size());
 
         Set<MeetingParticipantEntity> participants = new HashSet<>();
         participants.add(buildParticipant(meeting, organizer, ParticipantRole.ORGANIZER, ParticipantStatus.ACCEPTED));
 
         if (request.participantIds() != null) {
-            for (UUID userId : request.participantIds()) {
+            for (UUID userId : invitees) {
                 if (userId.equals(organizer.getId())) {
                     continue;
                 }
@@ -149,7 +158,9 @@ public class MeetingService {
                         request.roomId(), meeting.getMeetingDate(), meeting.getStartHour(), MeetingStatus.SCHEDULED)) {
                     throw new ConflictException("ROOM_CONFLICT", "Room already booked for that slot");
                 }
-                meeting.setRoom(roomService.findRoom(request.roomId()));
+                RoomEntity room = roomService.findRoom(request.roomId());
+                ensureRoomCapacity(room, countActiveParticipants(meeting));
+                meeting.setRoom(room);
             }
         }
         if (request.status() != null) {
@@ -190,11 +201,14 @@ public class MeetingService {
         Set<UUID> existing = meeting.getParticipants().stream()
                 .map(mp -> mp.getUser().getId())
                 .collect(Collectors.toSet());
+        List<UUID> newUserIds = request.userIds().stream()
+                .filter(userId -> !existing.contains(userId))
+                .toList();
+        if (!newUserIds.isEmpty()) {
+            ensureRoomCapacity(meeting, newUserIds.size());
+        }
 
-        for (UUID userId : request.userIds()) {
-            if (existing.contains(userId)) {
-                continue;
-            }
+        for (UUID userId : newUserIds) {
             UserEntity user = userService.findUser(userId);
             meeting.getParticipants().add(buildParticipant(meeting, user, ParticipantRole.ATTENDEE, ParticipantStatus.PENDING));
         }
@@ -212,6 +226,10 @@ public class MeetingService {
         requireOrganizer(currentUser, meeting);
 
         if (request.status() != null) {
+            if ((request.status() == ParticipantStatus.ACCEPTED || request.status() == ParticipantStatus.PENDING)
+                    && participant.getStatus() == ParticipantStatus.DECLINED) {
+                ensureRoomCapacity(meeting, 1);
+            }
             if (request.status() == ParticipantStatus.ACCEPTED
                     && participant.getStatus() != ParticipantStatus.ACCEPTED) {
                 long conflicts = participantRepository.countAcceptedAtSlot(userId, meeting.getMeetingDate(), meeting.getStartHour());
@@ -250,5 +268,33 @@ public class MeetingService {
         participant.setRole(role);
         participant.setStatus(status);
         return participant;
+    }
+
+    private void ensureRoomCapacity(MeetingEntity meeting, int additionalParticipants) {
+        if (meeting.getRoom() == null || meeting.getRoom().getCapacity() == null) {
+            return;
+        }
+        int current = countActiveParticipants(meeting);
+        if (current + additionalParticipants > meeting.getRoom().getCapacity()) {
+            throw new ConflictException("ROOM_CAPACITY_EXCEEDED", "Room capacity exceeded");
+        }
+    }
+
+    private void ensureRoomCapacity(RoomEntity room, int totalParticipants) {
+        if (room == null || room.getCapacity() == null) {
+            return;
+        }
+        if (totalParticipants > room.getCapacity()) {
+            throw new ConflictException("ROOM_CAPACITY_EXCEEDED", "Room capacity exceeded");
+        }
+    }
+
+    private int countActiveParticipants(MeetingEntity meeting) {
+        if (meeting.getParticipants() == null) {
+            return 0;
+        }
+        return (int) meeting.getParticipants().stream()
+                .filter(mp -> mp.getStatus() == ParticipantStatus.PENDING || mp.getStatus() == ParticipantStatus.ACCEPTED)
+                .count();
     }
 }

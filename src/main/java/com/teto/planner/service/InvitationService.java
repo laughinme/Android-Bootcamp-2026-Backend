@@ -63,6 +63,9 @@ public class InvitationService {
         if (status == InvitationResponseStatus.ACCEPTED
                 && participant.getStatus() != ParticipantStatus.ACCEPTED) {
             MeetingEntity meeting = participant.getMeeting();
+            if (participant.getStatus() == ParticipantStatus.DECLINED) {
+                ensureRoomCapacity(meeting, 1);
+            }
             long conflicts = participantRepository.countAcceptedAtSlot(currentUser.getId(), meeting.getMeetingDate(), meeting.getStartHour());
             if (conflicts > 0) {
                 throw new ConflictException("SLOT_CONFLICT", "You already have accepted meeting at that slot");
@@ -84,5 +87,17 @@ public class InvitationService {
         }
 
         return meetingMapper.toParticipant(participant);
+    }
+
+    private void ensureRoomCapacity(MeetingEntity meeting, int additionalParticipants) {
+        if (meeting.getRoom() == null || meeting.getRoom().getCapacity() == null) {
+            return;
+        }
+        int current = (int) meeting.getParticipants().stream()
+                .filter(mp -> mp.getStatus() == ParticipantStatus.PENDING || mp.getStatus() == ParticipantStatus.ACCEPTED)
+                .count();
+        if (current + additionalParticipants > meeting.getRoom().getCapacity()) {
+            throw new ConflictException("ROOM_CAPACITY_EXCEEDED", "Room capacity exceeded");
+        }
     }
 }
