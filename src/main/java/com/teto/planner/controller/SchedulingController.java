@@ -37,9 +37,10 @@ public class SchedulingController {
     @GetMapping("/first-free")
     public FirstFreeSlotResponse getFirstFreeSlot(
             @RequestParam("meetingDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate meetingDate,
-            @RequestParam("userIds") List<UUID> userIds
+            @RequestParam("userIds") List<UUID> userIds,
+            @RequestParam(value = "durationHours", required = false) Integer durationHours
     ) {
         UserEntity organizer = currentUserService.getCurrentUser();
-        return schedulingService.getFirstFreeSlot(organizer, meetingDate, userIds);
+        return schedulingService.getFirstFreeSlot(organizer, meetingDate, userIds, durationHours);
     }
 }
