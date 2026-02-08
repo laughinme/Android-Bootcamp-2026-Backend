@@ -28,6 +28,21 @@ databaseChangeLog:
               - column: { name: telegram_nick, type: STRING }
 
   - changeSet:
+      id: 003-02b-seed-users-bulk
+      author: assistant
+      changes:
+        - loadData:
+            tableName: users
+            file: db/changelog/data/users_bulk.csv
+            separator: ","
+            columns:
+              - column: { name: id, type: UUID }
+              - column: { name: login, type: STRING }
+              - column: { name: name, type: STRING }
+              - column: { name: password_hash, type: STRING }
+              - column: { name: telegram_nick, type: STRING }
+
+  - changeSet:
       id: 003-03-seed-user-roles
       author: assistant
       changes:
