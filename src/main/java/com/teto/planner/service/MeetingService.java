@@ -18,6 +18,7 @@ import com.teto.planner.entity.ParticipantRole;
 import com.teto.planner.entity.ParticipantStatus;
 import com.teto.planner.entity.RoomEntity;
 import com.teto.planner.entity.UserEntity;
+import com.teto.planner.dto.LoadStatus;
 import com.teto.planner.exception.ConflictException;
 import com.teto.planner.exception.ForbiddenException;
 import com.teto.planner.exception.NotFoundException;
@@ -27,10 +28,13 @@ import com.teto.planner.repository.MeetingParticipantRepository;
 import com.teto.planner.repository.MeetingRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -72,8 +76,16 @@ public class MeetingService {
                         Sort.Order.asc("startHour"),
                         Sort.Order.asc("id")
                 )));
+        Map<LocalDate, Set<UUID>> idsByDate = collectIdsByDate(meetings.getContent());
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = loadBusyHours(idsByDate);
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = loadStatusByDate(busyByDate);
+
         List<MeetingDto> items = meetings.getContent().stream()
-                .map(meetingMapper::toDto)
+                .map(meeting -> {
+                    Map<UUID, Integer> busy = busyByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+                    Map<UUID, LoadStatus> status = statusByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+                    return meetingMapper.toDto(meeting, busy, status);
+                })
                 .collect(Collectors.toList());
         return new MeetingsPage(items, new PageMeta(page, size, meetings.getTotalElements()));
     }
@@ -82,7 +94,12 @@ public class MeetingService {
     public MeetingDto getMeeting(UUID meetingId) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new NotFoundException("MEETING_NOT_FOUND", "Meeting not found"));
-        return meetingMapper.toDto(meeting);
+        Map<LocalDate, Set<UUID>> idsByDate = collectIdsByDate(List.of(meeting));
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = loadBusyHours(idsByDate);
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = loadStatusByDate(busyByDate);
+        Map<UUID, Integer> busy = busyByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+        Map<UUID, LoadStatus> status = statusByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+        return meetingMapper.toDto(meeting, busy, status);
     }
 
     @Transactional
@@ -193,7 +210,14 @@ public class MeetingService {
     public List<MeetingParticipantDto> listParticipants(UUID meetingId) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new NotFoundException("MEETING_NOT_FOUND", "Meeting not found"));
-        return meeting.getParticipants().stream().map(meetingMapper::toParticipant).collect(Collectors.toList());
+        Map<LocalDate, Set<UUID>> idsByDate = collectIdsByDate(List.of(meeting));
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = loadBusyHours(idsByDate);
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = loadStatusByDate(busyByDate);
+        Map<UUID, Integer> busy = busyByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+        Map<UUID, LoadStatus> status = statusByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+        return meeting.getParticipants().stream()
+                .map(p -> meetingMapper.toParticipant(p, busy, status))
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -300,5 +324,62 @@ public class MeetingService {
         return (int) meeting.getParticipants().stream()
                 .filter(mp -> mp.getStatus() == ParticipantStatus.PENDING || mp.getStatus() == ParticipantStatus.ACCEPTED)
                 .count();
+    }
+
+    private Map<LocalDate, Set<UUID>> collectIdsByDate(List<MeetingEntity> meetings) {
+        Map<LocalDate, Set<UUID>> idsByDate = new HashMap<>();
+        for (MeetingEntity meeting : meetings) {
+            LocalDate date = meeting.getMeetingDate();
+            Set<UUID> ids = idsByDate.computeIfAbsent(date, key -> new HashSet<>());
+            ids.add(meeting.getOrganizer().getId());
+            if (meeting.getParticipants() != null) {
+                for (MeetingParticipantEntity participant : meeting.getParticipants()) {
+                    ids.add(participant.getUser().getId());
+                }
+            }
+        }
+        return idsByDate;
+    }
+
+    private Map<LocalDate, Map<UUID, Integer>> loadBusyHours(Map<LocalDate, Set<UUID>> idsByDate) {
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = new HashMap<>();
+        for (Map.Entry<LocalDate, Set<UUID>> entry : idsByDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            List<UUID> ids = new ArrayList<>(entry.getValue());
+            if (ids.isEmpty()) {
+                continue;
+            }
+            Map<UUID, Integer> busy = new HashMap<>();
+            for (var row : participantRepository.sumBusyHours(ids, date)) {
+                busy.put(row.getUserId(), row.getHours().intValue());
+            }
+            busyByDate.put(date, busy);
+        }
+        return busyByDate;
+    }
+
+    private Map<LocalDate, Map<UUID, LoadStatus>> loadStatusByDate(Map<LocalDate, Map<UUID, Integer>> busyByDate) {
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = new HashMap<>();
+        for (Map.Entry<LocalDate, Map<UUID, Integer>> entry : busyByDate.entrySet()) {
+            Map<UUID, LoadStatus> status = new HashMap<>();
+            for (Map.Entry<UUID, Integer> hours : entry.getValue().entrySet()) {
+                status.put(hours.getKey(), toLoadStatus(hours.getValue()));
+            }
+            statusByDate.put(entry.getKey(), status);
+        }
+        return statusByDate;
+    }
+
+    private LoadStatus toLoadStatus(Integer hours) {
+        if (hours == null) {
+            return LoadStatus.LOW;
+        }
+        if (hours <= 2) {
+            return LoadStatus.LOW;
+        }
+        if (hours <= 5) {
+            return LoadStatus.MEDIUM;
+        }
+        return LoadStatus.HIGH;
     }
 }

@@ -2,6 +2,7 @@ package com.teto.planner.service;
 
 import com.teto.planner.dto.InvitationDto;
 import com.teto.planner.dto.InvitationsResponse;
+import com.teto.planner.dto.LoadStatus;
 import com.teto.planner.dto.MeetingParticipantDto;
 import com.teto.planner.dto.PageMeta;
 import com.teto.planner.dto.InvitationResponseStatus;
@@ -15,8 +16,14 @@ import com.teto.planner.exception.NotFoundException;
 import com.teto.planner.mapper.MeetingMapper;
 import com.teto.planner.pagination.Pagination;
 import com.teto.planner.repository.MeetingParticipantRepository;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
@@ -45,12 +52,21 @@ public class InvitationService {
                         Sort.Order.asc("startHour")
                 )));
 
+        Map<LocalDate, Set<UUID>> idsByDate = collectIdsByDate(pageResult.getContent());
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = loadBusyHours(idsByDate);
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = loadStatusByDate(busyByDate);
+
         List<InvitationDto> items = pageResult.getContent().stream()
-                .map(mp -> new InvitationDto(
-                        meetingMapper.toDto(mp.getMeeting()),
-                        mp.getRole(),
-                        mp.getStatus()
-                ))
+                .map(mp -> {
+                    MeetingEntity meeting = mp.getMeeting();
+                    Map<UUID, Integer> busy = busyByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+                    Map<UUID, LoadStatus> statusMap = statusByDate.getOrDefault(meeting.getMeetingDate(), Map.of());
+                    return new InvitationDto(
+                            meetingMapper.toDto(meeting, busy, statusMap),
+                            mp.getRole(),
+                            mp.getStatus()
+                    );
+                })
                 .collect(Collectors.toList());
 
         return new InvitationsResponse(items, new PageMeta(page, size, pageResult.getTotalElements()));
@@ -100,5 +116,63 @@ public class InvitationService {
         if (current + additionalParticipants > meeting.getRoom().getCapacity()) {
             throw new ConflictException("ROOM_CAPACITY_EXCEEDED", "Room capacity exceeded");
         }
+    }
+
+    private Map<LocalDate, Set<UUID>> collectIdsByDate(List<MeetingParticipantEntity> participants) {
+        Map<LocalDate, Set<UUID>> idsByDate = new HashMap<>();
+        for (MeetingParticipantEntity participant : participants) {
+            MeetingEntity meeting = participant.getMeeting();
+            LocalDate date = meeting.getMeetingDate();
+            Set<UUID> ids = idsByDate.computeIfAbsent(date, key -> new HashSet<>());
+            ids.add(meeting.getOrganizer().getId());
+            if (meeting.getParticipants() != null) {
+                for (MeetingParticipantEntity mp : meeting.getParticipants()) {
+                    ids.add(mp.getUser().getId());
+                }
+            }
+        }
+        return idsByDate;
+    }
+
+    private Map<LocalDate, Map<UUID, Integer>> loadBusyHours(Map<LocalDate, Set<UUID>> idsByDate) {
+        Map<LocalDate, Map<UUID, Integer>> busyByDate = new HashMap<>();
+        for (Map.Entry<LocalDate, Set<UUID>> entry : idsByDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            List<UUID> ids = new ArrayList<>(entry.getValue());
+            if (ids.isEmpty()) {
+                continue;
+            }
+            Map<UUID, Integer> busy = new HashMap<>();
+            for (var row : participantRepository.sumBusyHours(ids, date)) {
+                busy.put(row.getUserId(), row.getHours().intValue());
+            }
+            busyByDate.put(date, busy);
+        }
+        return busyByDate;
+    }
+
+    private Map<LocalDate, Map<UUID, LoadStatus>> loadStatusByDate(Map<LocalDate, Map<UUID, Integer>> busyByDate) {
+        Map<LocalDate, Map<UUID, LoadStatus>> statusByDate = new HashMap<>();
+        for (Map.Entry<LocalDate, Map<UUID, Integer>> entry : busyByDate.entrySet()) {
+            Map<UUID, LoadStatus> status = new HashMap<>();
+            for (Map.Entry<UUID, Integer> hours : entry.getValue().entrySet()) {
+                status.put(hours.getKey(), toLoadStatus(hours.getValue()));
+            }
+            statusByDate.put(entry.getKey(), status);
+        }
+        return statusByDate;
+    }
+
+    private LoadStatus toLoadStatus(Integer hours) {
+        if (hours == null) {
+            return LoadStatus.LOW;
+        }
+        if (hours <= 2) {
+            return LoadStatus.LOW;
+        }
+        if (hours <= 5) {
+            return LoadStatus.MEDIUM;
+        }
+        return LoadStatus.HIGH;
     }
 }
