@@ -34,6 +34,7 @@ public class InvitationService {
         this.meetingMapper = meetingMapper;
     }
 
+    @Transactional(readOnly = true)
     public InvitationsResponse listInvitations(UserEntity currentUser, ParticipantStatus status, int page, int size) {
         ParticipantStatus effective = status == null ? ParticipantStatus.PENDING : status;
         Page<MeetingParticipantEntity> pageResult = participantRepository.findByUserIdAndStatus(
