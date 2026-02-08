@@ -46,6 +46,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional(readOnly = true)
     public UsersPage listUsers(String query, LocalDate busyDate, boolean includeLoad, int page, int size) {
         Page<UserEntity> usersPage;
         var pageable = Pagination.pageRequest(page, size, Sort.by(Sort.Order.asc("login"), Sort.Order.asc("id")));
@@ -76,6 +77,7 @@ public class UserService {
         return new UsersPage(items, meta);
     }
 
+    @Transactional(readOnly = true)
     public UserDto getUser(UUID userId) {
         return userMapper.toDto(findUser(userId));
     }
@@ -153,6 +155,7 @@ public class UserService {
         return userMapper.toMe(managed);
     }
 
+    @Transactional(readOnly = true)
     public byte[] getAvatar(UUID userId) {
         UserEntity user = findUser(userId);
         if (user.getAvatarBytes() == null || user.getAvatarBytes().length == 0) {
@@ -161,6 +164,7 @@ public class UserService {
         return user.getAvatarBytes();
     }
 
+    @Transactional(readOnly = true)
     public UserEntity findUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("USER_NOT_FOUND", "User not found"));

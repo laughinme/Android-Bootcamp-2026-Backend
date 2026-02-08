@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SchedulingService {
@@ -35,6 +36,7 @@ public class SchedulingService {
         this.userMapper = userMapper;
     }
 
+    @Transactional(readOnly = true)
     public IntersectionResponse getIntersection(UserEntity organizer, LocalDate meetingDate, List<UUID> userIds) {
         List<UUID> uniqueUserIds = new ArrayList<>(new HashSet<>(userIds));
         uniqueUserIds.remove(organizer.getId());
@@ -86,6 +88,7 @@ public class SchedulingService {
         return new IntersectionResponse(meetingDate, organizerSummary, users, slots);
     }
 
+    @Transactional(readOnly = true)
     public FirstFreeSlotResponse getFirstFreeSlot(UserEntity organizer, LocalDate meetingDate,
                                                   List<UUID> userIds, Integer durationHours) {
         int duration = durationHours != null ? durationHours : 1;

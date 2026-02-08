@@ -58,7 +58,7 @@ public interface MeetingParticipantRepository extends JpaRepository<MeetingParti
             @Param("meetingDate") LocalDate meetingDate
     );
 
-    @EntityGraph(attributePaths = {"meeting", "meeting.organizer", "meeting.room", "meeting.participants", "meeting.participants.user", "user"})
+    @EntityGraph(attributePaths = {"meeting", "meeting.organizer", "meeting.room", "user"})
     @Query("""
         select mp from MeetingParticipantEntity mp
         join mp.meeting m

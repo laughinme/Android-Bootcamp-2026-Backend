@@ -59,6 +59,7 @@ public class MeetingService {
         this.meetingMapper = meetingMapper;
     }
 
+    @Transactional(readOnly = true)
     public MeetingsPage listMeetings(UserEntity currentUser, LocalDate startDate, LocalDate endDate,
                                      boolean includePending, int page, int size) {
         Page<MeetingEntity> meetings = meetingRepository.findForUserBetween(
@@ -77,6 +78,7 @@ public class MeetingService {
         return new MeetingsPage(items, new PageMeta(page, size, meetings.getTotalElements()));
     }
 
+    @Transactional(readOnly = true)
     public MeetingDto getMeeting(UUID meetingId) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new NotFoundException("MEETING_NOT_FOUND", "Meeting not found"));
@@ -178,6 +180,7 @@ public class MeetingService {
         meeting.setStatus(MeetingStatus.CANCELLED);
     }
 
+    @Transactional(readOnly = true)
     public BusySlotsResponse getBusySlots(UserEntity currentUser, LocalDate meetingDate) {
         List<MeetingParticipantEntity> slots = participantRepository.findBusySlots(currentUser.getId(), meetingDate);
         List<BusySlotDto> items = slots.stream()
@@ -186,6 +189,7 @@ public class MeetingService {
         return new BusySlotsResponse(meetingDate, items);
     }
 
+    @Transactional(readOnly = true)
     public List<MeetingParticipantDto> listParticipants(UUID meetingId) {
         MeetingEntity meeting = meetingRepository.findById(meetingId)
                 .orElseThrow(() -> new NotFoundException("MEETING_NOT_FOUND", "Meeting not found"));
